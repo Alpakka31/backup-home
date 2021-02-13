@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+
+# variables
+includeHidden=0
+excluded=""
+excludeOpts=""
+backupDir="Backup"
+
+# Check if backup dir exists
+checkBackupDir() {
+    if [ ! -d "$HOME/$backupDir" ]; then
+        mkdir -p "$HOME/$backupDir"
+    fi
+}
+
+# Parse the files and dirs that will be excluded from the backup
+parseExcluded() {
+    for e in $excluded; do
+        # The path to the file or directory must be absolute
+        if [[ "${e:0:1}" != "/" ]]; then
+            echo "Absolute path required!"
+            exit 1
+        fi
+
+        # The file or directory must be in the user's home directory
+        length=${#HOME}
+        if [[ "${e:0:$length}" != "$HOME" ]]; then
+            echo "Not a home directory!"
+            exit 1
+        fi
+
+        # Verify that the file or directory exists
+        if [ ! -f "${e}" ] && [ ! -d "${e}" ]; then
+            echo "File or directory doesn't exist!"
+            exit 1
+        fi
+
+        # Remove the home directory path from the file or directory
+        # and add it to the exclude list
+        e=$(echo ${e:$length} | cut -c 2-)
+        excludeOpts="$excludeOpts --exclude=${e}"
+    done
+}
+
+# Show the program usage
+usage() {
+    echo "Usage: backup-home.sh [option]
+where [option] can be
+    -h   include hidden directories and files (default: exclude)
+    -e   exclude files or folders (separated by whitespace)
+            note: absolute path to file or directory is required
+            for example (-e \"$HOME/Pictures $HOME/Downloads\")
+    -u   usage"
+exit 0
+}
+
+# Create a backup of the user's home directory
+backupHome() {
+    echo "Creating a backup of home directory '$HOME'"
+    echo
+    parseExcluded
+    checkBackupDir
+
+    # Enable dotfiles
+    shopt -s dotglob
+
+    fileName=""
+    # Hidden files and directories aren't included (this is the default)
+    if [ "$includeHidden" -eq 0 ]; then
+        cd $HOME
+        fileName="$HOME/$backupDir/$(date +%F_%T)-${USER}-home-backup.tar.xz"
+
+        # Backup the home directory excluding hidden files and directories and the given files or directories
+        tar --exclude=".*" --exclude="$backupDir" $excludeOpts -cvJf "$fileName" *
+        cd - >/dev/null
+    # Hidden files and directories will be included
+    elif [ "$includeHidden" -eq 1 ]; then
+        cd $HOME
+        fileName="$HOME/$backupDir/$(date +%F_%T)-${USER}-home-backup.tar.xz"
+        # Backup the home directory excluding the given files or directories
+        tar --exclude="$backupDir" $excludeOpts -cvJf "$fileName" *
+        cd - >/dev/null
+    fi
+
+    # Disable dotfiles
+    shopt -u dotglob
+
+    echo
+    echo "Succesfully created backup '$fileName'"
+}
+
+main() {
+    # Parse command-line arguments
+    while getopts ":uhe:" opt; do
+        case "${opt}" in
+            h)
+                includeHidden=1
+                ;;
+            e)
+                exc=${OPTARG}
+                if [ -z "$exc" ]; then
+                    usage
+                fi
+                excluded="${exc}"
+                ;;
+            u)
+                usage
+                ;;
+            *)
+                usage
+                ;;
+        esac
+    done
+    shift $((OPTIND-1))
+
+    backupHome
+}
+
+main "$@"
+exit 0
