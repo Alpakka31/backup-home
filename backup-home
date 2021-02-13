@@ -25,14 +25,17 @@ parseExcluded() {
         # The file or directory must be in the user's home directory
         length=${#HOME}
         if [[ "${e:0:$length}" != "$HOME" ]]; then
-            echo "Not a home directory!"
+            echo "Not in a home directory!"
             exit 1
         fi
 
-        # Verify that the file or directory exists
-        if [ ! -f "${e}" ] && [ ! -d "${e}" ]; then
-            echo "File or directory doesn't exist!"
-            exit 1
+        # Skip symlinks
+        if [ ! -L "${e}" ]; then
+            # Verify that the file or directory exists
+            if [ ! -f "${e}" ] && [ ! -d "${e}" ]; then
+                echo "File or directory '${e}' doesn't exist!"
+                exit 1
+            fi
         fi
 
         # Remove the home directory path from the file or directory
